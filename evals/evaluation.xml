@@ -1,0 +1,56 @@
+<evaluation>
+  <qa_pair>
+    <question>Google operates a public DNS resolver reachable at the IPv4 address 8.8.8.8. Perform a reverse-DNS (PTR) lookup on that address and give the single hostname it maps to.</question>
+    <answer>dns.google</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Is the apex domain google.com protected by DNSSEC — that is, does it publish DS/DNSKEY records with a validating chain of trust? Answer True or False.</question>
+    <answer>False</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Examine the certificate-authority authorization records for google.com. Exactly one certificate authority is permitted to issue certificates for it. What is that authority's domain?</question>
+    <answer>pki.goog</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Google publishes a DMARC policy for the domain google.com. What enforcement action does it instruct receiving mail servers to take on messages that fail authentication? Answer with the single policy keyword.</question>
+    <answer>reject</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Does cloudflare.com deploy DNSSEC with a chain of trust that actually validates (the resolver's Authenticated Data flag is set)? Answer True or False.</question>
+    <answer>True</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Using an offline IP geolocation database, determine the country of the IPv4 address 8.8.8.8. Provide the ISO 3166-1 alpha-2 country code.</question>
+    <answer>US</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Does gmail.com publish an MTA-STS policy in enforcement mode (mode=enforce), with BOTH the DNS record and the HTTPS policy file present? Answer True or False.</question>
+    <answer>True</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Analyze the following raw email headers and report the DMARC result recorded in the Authentication-Results header. Answer with a single word.
+
+Received: from mail.acme.com (mail.acme.com [203.0.113.10]) by mx.dest.com; Mon, 02 Mar 2026 08:00:10 +0000
+Received: from app.acme.com (app.acme.com [203.0.113.11]) by mail.acme.com; Mon, 02 Mar 2026 08:00:00 +0000
+Authentication-Results: mx.dest.com; spf=pass smtp.mailfrom=acme.com; dkim=pass header.d=acme.com; dmarc=fail (p=reject) header.from=acme.com
+From: Billing &lt;billing@acme.com&gt;
+Subject: Invoice 4471
+Message-ID: &lt;inv-4471@acme.com&gt;</question>
+    <answer>fail</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Analyze the following raw email headers and compute the total transit time of the message, from the earliest to the latest Received hop, in seconds. Answer with the number only.
+
+Received: from c.example.net by d.example.net; Tue, 03 Mar 2026 12:00:30 +0000
+Received: from b.example.net by c.example.net; Tue, 03 Mar 2026 12:00:18 +0000
+Received: from a.example.net by b.example.net; Tue, 03 Mar 2026 12:00:00 +0000
+Authentication-Results: d.example.net; spf=pass; dkim=fail; dmarc=pass
+From: A &lt;a@example.net&gt;
+Subject: Test</question>
+    <answer>30</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>According to WHOIS, which registrar organization manages the domain google.com? Provide the organization name exactly as reported.</question>
+    <answer>MarkMonitor, Inc.</answer>
+  </qa_pair>
+</evaluation>

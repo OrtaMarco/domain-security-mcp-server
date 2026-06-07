@@ -1,0 +1,59 @@
+{
+  "name": "domain-security-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for domain and email security audits — SPF, DKIM, DMARC, MTA-STS, BIMI, DNSSEC, DNS, TLS/SSL and WHOIS. No API keys required.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "domain-security-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "start": "node dist/index.js",
+    "start:http": "TRANSPORT=http node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "smoke": "node scripts/smoke-all.mjs",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "dns",
+    "spf",
+    "dkim",
+    "dmarc",
+    "mta-sts",
+    "bimi",
+    "dnssec",
+    "ssl",
+    "tls",
+    "whois",
+    "email-security",
+    "deliverability"
+  ],
+  "author": "Marco Orta <https://ortamarco.me>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^4.21.2",
+    "geoip-lite": "^1.4.10",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
