@@ -6,8 +6,8 @@
  *   - "json": complete structured data for programmatic use.
  */
 
-import { z } from "zod";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import * as z from "zod/v4";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { CHARACTER_LIMIT } from "./constants.js";
 
 export enum ResponseFormat {
@@ -17,7 +17,7 @@ export enum ResponseFormat {
 
 /** Reusable Zod field so every tool exposes the same `response_format` option. */
 export const responseFormatField = z
-  .nativeEnum(ResponseFormat)
+  .enum(ResponseFormat)
   .default(ResponseFormat.MARKDOWN)
   .describe(
     "Output format: 'markdown' for a human-readable summary (default) or 'json' for the full structured payload.",

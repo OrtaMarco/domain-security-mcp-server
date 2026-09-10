@@ -2,8 +2,8 @@
  * Web-security tools: http_security_headers, dnssec_check.
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import type { McpServer } from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
 import { fail, respond, responseFormatField, statusLine } from "../format.js";
 import { errMessage, validateHost, validateUrl } from "../core/validate.js";
 import { analyzeSecurityHeaders } from "../core/http.js";
@@ -37,8 +37,8 @@ Returns: { url, final_url, status, grade, score, checks[{header, present, value,
 
 Example: "Grade the security headers on https://news.ycombinator.com" -> http_security_headers(url="https://news.ycombinator.com").
 Errors: returns an error if the URL is invalid or the host is unreachable.`,
-      inputSchema: UrlInput.shape,
-      outputSchema: SecurityHeadersSchema.shape,
+      inputSchema: UrlInput,
+      outputSchema: SecurityHeadersSchema,
       annotations: READ_ONLY,
     },
     async ({ url, response_format }) => {
@@ -79,8 +79,8 @@ Args:
 Returns: { enabled, validated, ds_records, dnskey_records, findings[] }.
 
 Example: "Is cloudflare.com DNSSEC-signed?" -> dnssec_check(domain="cloudflare.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: DnssecSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: DnssecSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {

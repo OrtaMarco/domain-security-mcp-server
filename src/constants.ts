@@ -3,7 +3,7 @@
  */
 
 export const SERVER_NAME = "domain-security-mcp-server";
-export const SERVER_VERSION = "1.0.0";
+export const SERVER_VERSION = "1.1.0";
 
 /**
  * Public DNS resolvers (Cloudflare, Google, Quad9). Used instead of the host's

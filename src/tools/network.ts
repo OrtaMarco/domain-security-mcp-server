@@ -3,8 +3,8 @@
  * whois_lookup. The first four are ported from the ortamarco.me tool backend.
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import type { McpServer } from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
 import { ResponseFormat, fail, respond, responseFormatField } from "../format.js";
 import { resolveAllRecords, reverseDns, type NormalizedRecord } from "../core/dns.js";
 import { inspectCertificate } from "../core/tls.js";
@@ -62,8 +62,8 @@ Examples:
   - Use ssl_certificate for TLS details, whois_lookup for registration data.
 
 Errors: returns an error if the domain is malformed or has no resolvable records.`,
-      inputSchema: DnsInput.shape,
-      outputSchema: DnsLookupSchema.shape,
+      inputSchema: DnsInput,
+      outputSchema: DnsLookupSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -100,8 +100,8 @@ Returns: { ip, hostnames: string[] }.
 
 Example: "What hostname does 8.8.8.8 reverse to?" -> reverse_dns(ip="8.8.8.8").
 Errors: returns an error if the IP is invalid or has no PTR record.`,
-      inputSchema: IpInput.shape,
-      outputSchema: ReverseDnsSchema.shape,
+      inputSchema: IpInput,
+      outputSchema: ReverseDnsSchema,
       annotations: READ_ONLY,
     },
     async ({ ip, response_format }) => {
@@ -133,8 +133,8 @@ Returns: { ip, country_iso, country_name, region, city, latitude, longitude, tim
 
 Example: "Where is 151.101.1.69 located?" -> ip_geolocation(ip="151.101.1.69").
 Note: geolocation is approximate (city-level at best) and offline data may lag reality.`,
-      inputSchema: IpInput.shape,
-      outputSchema: IpInfoSchema.shape,
+      inputSchema: IpInput,
+      outputSchema: IpInfoSchema,
       annotations: READ_ONLY,
     },
     async ({ ip, response_format }) => {
@@ -180,8 +180,8 @@ Returns: certificate fields plus { days_until_expiry, expired, expires_soon }.
 
 Example: "When does github.com's certificate expire?" -> ssl_certificate(domain="github.com").
 Errors: returns an error if the host is unreachable or serves no certificate.`,
-      inputSchema: SslInput.shape,
-      outputSchema: CertificateSchema.shape,
+      inputSchema: SslInput,
+      outputSchema: CertificateSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, port, response_format }) => {
@@ -234,8 +234,8 @@ Returns: { domain, registrar, created, updated, expires, name_servers[], status[
 
 Example: "Who is the registrar for openai.com and when does it expire?" -> whois_lookup(domain="openai.com").
 Errors: returns an error if no WHOIS server answers (some ccTLDs restrict or rate-limit WHOIS).`,
-      inputSchema: WhoisInput.shape,
-      outputSchema: WhoisSchema.shape,
+      inputSchema: WhoisInput,
+      outputSchema: WhoisSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {

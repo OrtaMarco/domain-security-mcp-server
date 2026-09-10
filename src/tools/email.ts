@@ -4,8 +4,8 @@
  * bimi_check.
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import type { McpServer } from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
 import { fail, respond, responseFormatField } from "../format.js";
 import { errMessage, validateHost, validateSelector } from "../core/validate.js";
 import {
@@ -94,8 +94,8 @@ Examples:
   - "Audit acme.com, our DKIM selector is 'k1'" -> email_auth_audit(domain="acme.com", dkim_selectors=["k1"])
 
 Errors: returns an error only if the domain is malformed; missing records are reported as findings, not errors.`,
-      inputSchema: AuditInput.shape,
-      outputSchema: EmailAuditSchema.shape,
+      inputSchema: AuditInput,
+      outputSchema: EmailAuditSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, dkim_selectors, response_format }) => {
@@ -153,8 +153,8 @@ Args:
 Returns: { found, record, multiple_records, all_qualifier, lookup_count, exceeds_lookup_limit, findings[] }.
 
 Example: "Does sendgrid.net's SPF exceed the 10-lookup limit?" -> spf_check(domain="sendgrid.net").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: SpfSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: SpfSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -194,8 +194,8 @@ Args:
 Returns: { found, record, policy, tags{}, findings[] }.
 
 Example: "What is paypal.com's DMARC policy?" -> dmarc_check(domain="paypal.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: DmarcSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: DmarcSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -248,8 +248,8 @@ Returns: { any_found, probed_selectors, selectors[{selector, found, record, key_
 Examples:
   - "Does acme.com publish a DKIM key for selector 'google'?" -> dkim_check(domain="acme.com", selectors=["google"])
   - "Find any DKIM keys for acme.com" -> dkim_check(domain="acme.com")`,
-      inputSchema: DkimInput.shape,
-      outputSchema: DkimSchema.shape,
+      inputSchema: DkimInput,
+      outputSchema: DkimSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, selectors, response_format }) => {
@@ -290,8 +290,8 @@ Args:
 Returns: { dns_record_found, policy_found, mode, policy{}, findings[] }.
 
 Example: "Does gmail.com enforce MTA-STS?" -> mta_sts_check(domain="gmail.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: MtaStsSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: MtaStsSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -328,8 +328,8 @@ Args:
 Returns: { found, record, findings[] }.
 
 Example: "Does microsoft.com publish TLS-RPT?" -> tls_rpt_check(domain="microsoft.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: TxtPolicySchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: TxtPolicySchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -359,8 +359,8 @@ Args:
 Returns: { found, record, findings[] }.
 
 Example: "Does cnn.com have BIMI set up?" -> bimi_check(domain="cnn.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: TxtPolicySchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: TxtPolicySchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {

@@ -1,12 +1,16 @@
 /**
- * Zod output schemas for every tool. Each tool's `outputSchema` is the `.shape`
- * of the matching schema here, and `respond()` attaches the data object as
- * `structuredContent` (validated by the SDK against that schema).
+ * Zod output schemas for every tool. Each tool's `outputSchema` is the matching
+ * schema object here (v2 takes Standard Schema objects — raw `.shape` shapes are
+ * deprecated), and `respond()` attaches the data object as `structuredContent`
+ * (validated by the SDK against that schema).
+ *
+ * Authored with Zod 4 via the `zod/v4` subpath — the v2 SDK requires >=4.2 so it
+ * can self-convert through `~standard.jsonSchema` and keep `.describe()` text.
  *
  * Kept in sync with the interfaces in `core/*`.
  */
 
-import { z } from "zod";
+import * as z from "zod/v4";
 
 const Finding = z.object({ severity: z.string(), message: z.string() });
 const NormalizedRecord = z.object({
@@ -14,7 +18,7 @@ const NormalizedRecord = z.object({
   host: z.string(),
   value: z.string(),
   priority: z.number().optional(),
-  extra: z.record(z.number()).optional(),
+  extra: z.record(z.string(), z.number()).optional(),
 });
 const DkimSelector = z.object({
   selector: z.string(),
@@ -71,7 +75,7 @@ export const DmarcSchema = z.object({
   domain: z.string(),
   found: z.boolean(),
   record: z.string().optional(),
-  tags: z.record(z.string()),
+  tags: z.record(z.string(), z.string()),
   policy: z.string().optional(),
   findings: z.array(Finding),
 });
@@ -89,7 +93,7 @@ export const MtaStsSchema = z.object({
   dns_record_found: z.boolean(),
   policy_found: z.boolean(),
   mode: z.string().optional(),
-  policy: z.record(z.union([z.string(), z.array(z.string())])).optional(),
+  policy: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
   findings: z.array(Finding),
 });
 
@@ -125,7 +129,7 @@ export const EmailAuditSchema = z.object({
 
 export const DnsLookupSchema = z.object({
   domain: z.string(),
-  records: z.record(z.array(NormalizedRecord)),
+  records: z.record(z.string(), z.array(NormalizedRecord)),
 });
 
 export const ReverseDnsSchema = z.object({
@@ -223,7 +227,7 @@ export const HeadersAnalysisSchema = z.object({
     dkim: z.string().nullable(),
     dmarc: z.string().nullable(),
   }),
-  fields: z.record(z.string()),
+  fields: z.record(z.string(), z.string()),
   hops: z.array(Hop),
   totalSec: z.number().nullable(),
 });

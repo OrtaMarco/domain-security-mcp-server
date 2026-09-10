@@ -2,26 +2,37 @@
 /**
  * domain-security-mcp-server entry point.
  *
+ * Built on the **v2 MCP SDK**, so it speaks the 2026-07-28 protocol revision
+ * *and* keeps serving 2025-era clients (Claude Desktop, Claude Code, Cursor)
+ * from the same factory — the entry point owns the era decision, not the
+ * server object.
+ *
  * Transports:
- *   - stdio (default)  : for Claude Desktop / Claude Code and other local clients.
- *   - http             : stateless Streamable HTTP, for self-hosting (e.g. behind
- *                        a Coolify/Traefik reverse proxy). Set TRANSPORT=http.
+ *   - stdio (default) : `serveStdio(factory)`. The opening exchange pins the
+ *                       connection's era; one server instance per connection.
+ *   - http            : `createMcpHandler(factory)` behind Express, for
+ *                       self-hosting (e.g. behind a Coolify/Traefik reverse
+ *                       proxy). Stateless by definition — the 2026 revision is
+ *                       per request, and the default `legacy: 'stateless'`
+ *                       serves 2025 clients through the same endpoint. No
+ *                       `Mcp-Session-Id`. Set TRANSPORT=http.
  *
  * No API keys are required for any tool. All logging goes to stderr so it never
  * corrupts the stdio JSON-RPC stream.
  */
 
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createMcpHandler } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { toNodeHandler } from "@modelcontextprotocol/node";
 import express, { type Request, type Response } from "express";
 import { createServer } from "./server.js";
 import { SERVER_NAME, SERVER_VERSION } from "./constants.js";
 
-async function runStdio(): Promise<void> {
-  const server = createServer();
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error(`${SERVER_NAME} v${SERVER_VERSION} running on stdio`);
+function runStdio(): void {
+  serveStdio(() => createServer(), {
+    onerror: (error) => console.error(`${SERVER_NAME}: ${error.message}`),
+  });
+  console.error(`${SERVER_NAME} v${SERVER_VERSION} running on stdio (2026-07-28 + 2025-era clients)`);
 }
 
 function originAllowed(req: Request): boolean {
@@ -34,7 +45,7 @@ function originAllowed(req: Request): boolean {
   return !origin || allow.includes(origin);
 }
 
-async function runHttp(): Promise<void> {
+function runHttp(): void {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
@@ -42,7 +53,14 @@ async function runHttp(): Promise<void> {
     res.json({ status: "ok", server: SERVER_NAME, version: SERVER_VERSION });
   });
 
-  app.post("/mcp", async (req: Request, res: Response) => {
+  // One handler, one factory, both eras. `legacy` defaults to 'stateless',
+  // which is exactly the shape the v1 stateless Streamable HTTP deployment had.
+  const handler = createMcpHandler(() => createServer());
+  const node = toNodeHandler(handler, {
+    onerror: (error) => console.error(`${SERVER_NAME}: ${error.message}`),
+  });
+
+  app.all("/mcp", (req: Request, res: Response) => {
     if (!originAllowed(req)) {
       res.status(403).json({
         jsonrpc: "2.0",
@@ -51,45 +69,8 @@ async function runHttp(): Promise<void> {
       });
       return;
     }
-
-    // Stateless: a fresh server + transport per request avoids cross-request
-    // state and request-ID collisions.
-    const server = createServer();
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-
-    res.on("close", () => {
-      void transport.close();
-      void server.close();
-    });
-
-    try {
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-    } catch (err) {
-      console.error("Error handling MCP request:", err);
-      if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: "2.0",
-          error: { code: -32603, message: "Internal server error" },
-          id: null,
-        });
-      }
-    }
+    void node(req, res, req.body);
   });
-
-  // Stateless mode does not support SSE streams or session teardown.
-  const methodNotAllowed = (_req: Request, res: Response) => {
-    res.status(405).json({
-      jsonrpc: "2.0",
-      error: { code: -32000, message: "Method not allowed (stateless server)." },
-      id: null,
-    });
-  };
-  app.get("/mcp", methodNotAllowed);
-  app.delete("/mcp", methodNotAllowed);
 
   const port = parseInt(process.env.PORT ?? "3000", 10);
   const host = process.env.HOST ?? "0.0.0.0";
@@ -99,9 +80,11 @@ async function runHttp(): Promise<void> {
 }
 
 const transport = (process.env.TRANSPORT ?? "stdio").toLowerCase();
-const main = transport === "http" ? runHttp : runStdio;
 
-main().catch((err) => {
+try {
+  if (transport === "http") runHttp();
+  else runStdio();
+} catch (err) {
   console.error("Fatal error starting server:", err);
   process.exit(1);
-});
+}

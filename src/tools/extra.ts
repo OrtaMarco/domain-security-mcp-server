@@ -4,9 +4,9 @@
  * the same capabilities.
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { isIP } from "node:net";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { ResponseFormat, fail, respond, responseFormatField } from "../format.js";
 import { errMessage, validateHost } from "../core/validate.js";
 import {
@@ -52,8 +52,8 @@ Args:
 Returns: { found, issue[], issuewild[], iodef[] }.
 
 Example: "Which CAs can issue certs for google.com?" -> caa_check(domain="google.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: CaaSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: CaaSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -90,8 +90,8 @@ Args:
 Returns: array of { exchange, priority, ips[] }.
 
 Example: "What are the mail servers for github.com?" -> mx_lookup(domain="github.com").`,
-      inputSchema: DomainInput.shape,
-      outputSchema: MxSchema.shape,
+      inputSchema: DomainInput,
+      outputSchema: MxSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, response_format }) => {
@@ -128,8 +128,8 @@ Args:
 Returns: { ips[], listedCount, checked, results[{ip, hits[{list, listed, reason}]}], note }.
 
 Example: "Is 203.0.113.5 blacklisted?" -> blacklist_check(query="203.0.113.5").`,
-      inputSchema: BlacklistInput.shape,
-      outputSchema: BlacklistSchema.shape,
+      inputSchema: BlacklistInput,
+      outputSchema: BlacklistSchema,
       annotations: READ_ONLY,
     },
     async ({ query, response_format }) => {
@@ -176,8 +176,8 @@ Args:
 Returns: { type, consistent, resolvers[{name, server, values[], error}] }.
 
 Example: "Has the A record for example.com propagated?" -> dns_propagation(domain="example.com").`,
-      inputSchema: PropagationInput.shape,
-      outputSchema: PropagationSchema.shape,
+      inputSchema: PropagationInput,
+      outputSchema: PropagationSchema,
       annotations: READ_ONLY,
     },
     async ({ domain, type, response_format }) => {
@@ -219,8 +219,8 @@ Args:
 Returns: { auth{spf,dkim,dmarc}, fields{}, hops[{index,from,by,date,delaySec}], totalSec }.
 
 Example: paste the headers from "Show original" in Gmail to trace a message's path and authentication.`,
-      inputSchema: HeadersInput.shape,
-      outputSchema: HeadersAnalysisSchema.shape,
+      inputSchema: HeadersInput,
+      outputSchema: HeadersAnalysisSchema,
       annotations: READ_ONLY,
     },
     async ({ headers, response_format }) => {

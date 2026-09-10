@@ -1,9 +1,14 @@
 /**
- * Builds the MCP server instance and registers every tool. Shared by both the
- * stdio and HTTP entry points so the two transports always expose the same API.
+ * Builds the MCP server instance and registers every tool.
+ *
+ * This is a **factory**, not a singleton: both v2 entry points (`serveStdio`
+ * and `createMcpHandler`) take a factory and call it once per connection
+ * (stdio) or once per request (HTTP), which is what lets one code path serve
+ * both the 2026-07-28 revision and 2025-era clients. Either way the two
+ * transports always expose the same API.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { SERVER_NAME, SERVER_VERSION } from "./constants.js";
 import { registerNetworkTools } from "./tools/network.js";
 import { registerEmailTools } from "./tools/email.js";
@@ -19,13 +24,32 @@ Guidance:
 - \`blacklist_check\` queries only open-access DNSBLs; Spamhaus/Barracuda are excluded.
 - All tools accept response_format='json' for structured output instead of the default markdown.`;
 
+/**
+ * Create a fully-registered server instance.
+ *
+ * Tool registration order is deliberate and stable: `tools/list` returns them
+ * in this order on every connection, so a client that caches the list (see the
+ * `cacheHints` below) never sees it shuffle.
+ */
 export function createServer(): McpServer {
   const server = new McpServer(
     {
       name: SERVER_NAME,
       version: SERVER_VERSION,
     },
-    { instructions: INSTRUCTIONS },
+    {
+      capabilities: { tools: {} },
+      instructions: INSTRUCTIONS,
+      // The tool list is a compile-time constant here — no dynamic
+      // registration, no feature flags — so on the 2026-07-28 revision we can
+      // honestly advertise a real TTL instead of the SDK's conservative
+      // `ttlMs: 0`. `public` is safe because the advertisement carries nothing
+      // user-specific. 2025-era responses never carry these fields.
+      cacheHints: {
+        "tools/list": { ttlMs: 3_600_000, cacheScope: "public" },
+        "server/discover": { ttlMs: 3_600_000, cacheScope: "public" },
+      },
+    },
   );
 
   registerEmailTools(server); // flagship + email/deliverability
