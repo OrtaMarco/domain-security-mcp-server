@@ -1,6 +1,6 @@
 // Smoke test: spawn the built server over stdio, list tools, and run a real audit.
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 const transport = new StdioClientTransport({
   command: "node",

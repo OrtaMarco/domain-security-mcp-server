@@ -6,6 +6,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
+Built on the **v2 MCP SDK**: the server speaks the **2026-07-28** protocol
+revision and keeps accepting 2025-era clients (Claude Desktop, Claude Code,
+Cursor) from the same factory — the era is negotiated per connection, so there
+is nothing to configure on either side.
+
 Ask Claude *"Is acme.com protected against email spoofing?"* and it runs a full
 authentication audit and hands you a graded report with prioritised fixes —
 instead of you pasting a domain into five different web tools.
@@ -65,6 +70,8 @@ Every tool is **read-only**, declares an `outputSchema` and returns
 
 ## Install
 
+Requires **Node.js 20+** (the v2 SDK's floor).
+
 ```bash
 git clone https://github.com/ortamarco/domain-security-mcp-server.git
 cd domain-security-mcp-server
@@ -98,7 +105,9 @@ Restart Claude Desktop, then ask: *"Audit the email security of stripe.com."*
 ## Self-host (HTTP transport)
 
 The same server speaks stateless **Streamable HTTP** for remote/multi-client use
-— handy behind a reverse proxy such as Coolify or Traefik.
+— handy behind a reverse proxy such as Coolify or Traefik. One endpoint serves
+both protocol eras and there is no session state, so no `Mcp-Session-Id` header
+is issued or expected.
 
 ```bash
 TRANSPORT=http PORT=3000 npm start
@@ -120,8 +129,10 @@ protection (leave empty when a trusted proxy already restricts access).
 ```bash
 npm run dev      # tsx watch (stdio)
 npm run inspect  # open the MCP Inspector against the built server
-npm run build    # type-check + emit dist/
-npm run smoke    # call all 19 tools and validate structuredContent vs outputSchema
+npm run build     # type-check + emit dist/
+npm run typecheck # type-check only
+npm run smoke     # call all 19 tools on BOTH protocol eras and validate
+                  # structuredContent against each tool's outputSchema
 ```
 
 [`evals/`](./evals/) holds a 10-question LLM evaluation set (stable, verifiable)
@@ -131,8 +142,8 @@ and instructions for running it — see [`evals/README.md`](./evals/README.md).
 
 ```
 src/
-├── index.ts        # transport selection (stdio | http)
-├── server.ts       # registers every tool on one McpServer
+├── index.ts        # transport selection (stdio | http), v2 SDK entry points
+├── server.ts       # factory: registers every tool on one McpServer
 ├── core/           # pure logic, no MCP coupling — reusable & testable
 │   ├── dns.ts      # public-resolver DNS + DoH client
 │   ├── tls.ts      # certificate inspection
