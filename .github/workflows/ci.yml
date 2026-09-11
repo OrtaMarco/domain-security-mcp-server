@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 es el mínimo que declara `engines`; probarlo es lo que sostiene esa promesa.
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `prepare` corre `tsc`, así que un error de tipos ya tumba este paso.
+      - run: npm ci
+      - run: npm test --if-present
+
+  smoke:
+    name: Smoke en las dos eras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      # Llama a todas las tools por el protocolo real, una vez por era, y valida
+      # `structuredContent` contra el esquema de cada una. Toca la red de verdad.
+      - run: npm run smoke
+
+  docker:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: docker build -t mcp-ci .
+
+      - name: El contenedor arranca, responde /healthz y lista sus tools por HTTP
+        run: |
+          docker run -d --name mcp-ci -p 3000:3000 mcp-ci
+          curl -sf --retry 30 --retry-all-errors --retry-delay 1 http://127.0.0.1:3000/healthz
+          echo
+          n=$(curl -sf -X POST http://127.0.0.1:3000/mcp \
+            -H 'content-type: application/json' \
+            -H 'accept: application/json, text/event-stream' \
+            -H 'mcp-protocol-version: 2025-06-18' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
+            | sed -n 's/^data: //p' | jq '.result.tools | length')
+          echo "tools/list: ${n:-sin respuesta}"
+          if [ -z "$n" ] || [ "$n" -eq 0 ]; then
+            docker logs mcp-ci
+            exit 1
+          fi

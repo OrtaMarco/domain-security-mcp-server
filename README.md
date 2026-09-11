@@ -2,6 +2,7 @@
 
 > An [MCP](https://modelcontextprotocol.io) server that lets an AI agent audit the **email and domain security** of any domain — SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DNSSEC, DNS, TLS/SSL and WHOIS — in plain language. **No API keys required.**
 
+[![ci](https://github.com/OrtaMarco/domain-security-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/OrtaMarco/domain-security-mcp-server/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
