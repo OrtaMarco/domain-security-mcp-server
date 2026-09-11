@@ -2,7 +2,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# `prepare` corre `tsc`, y aquí aún no existen tsconfig.json ni src.
+RUN npm ci --ignore-scripts
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
@@ -14,7 +15,8 @@ ENV NODE_ENV=production
 ENV TRANSPORT=http
 ENV PORT=3000
 COPY package*.json ./
-RUN npm ci --omit=dev
+# Sin devDependencies no hay `tsc` para `prepare`; dist llega ya compilado.
+RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/dist ./dist
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s \
