@@ -22,8 +22,9 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      # `prepare` corre `tsc`, así que un error de tipos ya tumba este paso.
       - run: npm ci
+      # `tsc` sin emitir tumba el job ante un error de tipos; `pretest` compila.
+      - run: npx tsc --noEmit
       - run: npm test --if-present
 
   smoke:
@@ -38,9 +39,38 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run build
       # Llama a todas las tools por el protocolo real, una vez por era, y valida
       # `structuredContent` contra el esquema de cada una. Toca la red de verdad.
       - run: npm run smoke
+
+  package:
+    name: Paquete npm por npx
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      # `npm pack` corre `prepack` (build), así que prueba lo mismo que se publicaría.
+      - run: npm pack
+
+      - name: El tarball se instala con npx y responde initialize por stdio
+        run: |
+          tgz=$(ls *.tgz | head -1)
+          name=$(tar -xzOf "$tgz" package/package.json | jq -r .name)
+          if tar -tzf "$tgz" | grep -E '\.(map|d\.ts)$'; then
+            echo "El paquete lleva source maps o declaraciones" >&2
+            exit 1
+          fi
+          out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            | timeout 120 npx --yes --package "./$tgz" "$name" | head -1)
+          echo "$out"
+          echo "$out" | jq -e --arg n "$name" '.result.serverInfo.name == $n' >/dev/null
 
   docker:
     name: Imagen Docker

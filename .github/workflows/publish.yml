@@ -1,0 +1,48 @@
+name: publish
+
+# Publica a npm al empujar una etiqueta `vX.Y.Z`.
+#
+# Sin token: npm confía en este workflow por Trusted Publishing (OIDC). La relación se
+# registra una vez con `npm trust github domain-security-mcp-server --file publish.yml --repo
+# OrtaMarco/domain-security-mcp-server`; si se renombra este archivo hay que volver a registrarla.
+# `id-token: write` es lo que deja a Actions emitir el token OIDC que npm canjea, y con
+# él la procedencia sale sola: npm muestra desde qué commit y qué workflow salió.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Trusted Publishing exige npm >= 11.5.1, y Node 22 trae npm 10.
+      - run: npm install -g npm@^11.5.1
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: La etiqueta debe coincidir con la versión del package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "La etiqueta v$TAG no coincide con la versión $PKG del package.json" >&2
+            exit 1
+          fi
+
+      - run: npm publish --access public

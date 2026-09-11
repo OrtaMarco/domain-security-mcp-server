@@ -3,6 +3,7 @@
 > An [MCP](https://modelcontextprotocol.io) server that lets an AI agent audit the **email and domain security** of any domain — SPF, DKIM, DMARC, MTA-STS, TLS-RPT, BIMI, DNSSEC, DNS, TLS/SSL and WHOIS — in plain language. **No API keys required.**
 
 [![ci](https://github.com/OrtaMarco/domain-security-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/OrtaMarco/domain-security-mcp-server/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/domain-security-mcp-server)](https://www.npmjs.com/package/domain-security-mcp-server)
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
@@ -63,6 +64,7 @@ It is the agent-facing companion to the network tools at
 | `caa_check` | Which CAs may issue TLS certificates (CAA records) |
 | `blacklist_check` | IP/domain against open-access email DNSBLs |
 | `dns_propagation` | Compare a record across 5 public resolvers worldwide |
+| `http_security_headers` | Grade a site's HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and COOP |
 | `analyze_email_headers` | Parse raw headers → SPF/DKIM/DMARC verdicts + Received hop chain with delays |
 
 Every tool is **read-only**, declares an `outputSchema` and returns
@@ -71,59 +73,79 @@ Every tool is **read-only**, declares an `outputSchema` and returns
 
 ## Install
 
-Requires **Node.js 20+** (the v2 SDK's floor).
-
-```bash
-git clone https://github.com/ortamarco/domain-security-mcp-server.git
-cd domain-security-mcp-server
-npm install
-npm run build
-```
+Requires **Node.js 20.18+**. Nothing to clone — every MCP client can run it with `npx`.
 
 ## Use it with Claude Code
 
 ```bash
-claude mcp add domain-security -- node /absolute/path/to/domain-security-mcp-server/dist/index.js
+claude mcp add domain-security -- npx -y domain-security-mcp-server
 ```
 
-## Use it with Claude Desktop
+## Use it with Claude Desktop or Cursor
 
-Add to `claude_desktop_config.json` (see [`examples/`](./examples/claude_desktop_config.json)):
+Add to `claude_desktop_config.json` (or `~/.cursor/mcp.json`) — see [`examples/`](./examples/claude_desktop_config.json):
 
 ```json
 {
   "mcpServers": {
     "domain-security": {
-      "command": "node",
-      "args": ["/absolute/path/to/domain-security-mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "domain-security-mcp-server"]
     }
   }
 }
 ```
 
-Restart Claude Desktop, then ask: *"Audit the email security of stripe.com."*
+On Windows use `"command": "cmd"` with `"args": ["/c", "npx", "-y", "domain-security-mcp-server"]`.
+Restart the client, then ask: *"Audit the email security of stripe.com."*
 
 ## Self-host (HTTP transport)
 
-The same server speaks stateless **Streamable HTTP** for remote/multi-client use
-— handy behind a reverse proxy such as Coolify or Traefik. One endpoint serves
-both protocol eras and there is no session state, so no `Mcp-Session-Id` header
-is issued or expected.
+The same server speaks stateless **Streamable HTTP** for remote or multi-client
+use. One endpoint serves both protocol eras and there is no session state, so no
+`Mcp-Session-Id` header is issued or expected.
 
 ```bash
-TRANSPORT=http PORT=3000 npm start
-# POST JSON-RPC to http://localhost:3000/mcp   ·   health at /healthz
+TRANSPORT=http npx -y domain-security-mcp-server
+# POST JSON-RPC to http://127.0.0.1:3000/mcp   ·   health at /healthz
 ```
 
-Or with Docker:
+It is **safe by default**: it binds to `127.0.0.1` and only accepts `localhost`
+`Host` and `Origin` headers, which blocks DNS-rebinding attacks from a web page.
+To expose it — for example behind Coolify or Traefik — opt in explicitly:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TRANSPORT` | `stdio` | `http` to serve Streamable HTTP |
+| `PORT` | `3000` | Listening port |
+| `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` to accept remote connections |
+| `ALLOWED_HOSTS` | — | Comma-separated hostnames the `Host` header may carry (e.g. `mcp.example.com`) |
+| `ALLOWED_ORIGINS` | — | Comma-separated origins allowed to call from a browser |
+| `MCP_AUTH_TOKEN` | — | If set, every request needs `Authorization: Bearer <token>` |
+
+Binding to a non-loopback address without `ALLOWED_HOSTS` or `MCP_AUTH_TOKEN`
+works, but the server says so on stderr. With Docker (the image sets `HOST=0.0.0.0`):
 
 ```bash
 docker build -t domain-security-mcp .
-docker run -p 3000:3000 -e TRANSPORT=http domain-security-mcp
+docker run -p 3000:3000 -e ALLOWED_HOSTS=mcp.example.com -e MCP_AUTH_TOKEN=change-me domain-security-mcp
 ```
 
-Set `ALLOWED_ORIGINS=https://your.app` to enable Origin-based DNS-rebinding
-protection (leave empty when a trusted proxy already restricts access).
+## Security
+
+The tools reach out to hosts that the *caller* names, so every outbound
+connection is screened against server-side request forgery:
+
+- Private, loopback, link-local (cloud metadata), shared, multicast and reserved
+  addresses are refused in every spelling, including IPv4 embedded in IPv6
+  (`[::ffff:169.254.169.254]`).
+- The check happens **at connect time**, on the address the socket is actually
+  about to use, so DNS rebinding and names only an internal resolver knows are
+  refused too. Redirects are followed by hand and every hop is re-checked.
+- Response bodies, redirects, WHOIS referrals and every network call are capped
+  and time-limited.
+
+Found a problem? Please open a [private security advisory](https://github.com/OrtaMarco/domain-security-mcp-server/security/advisories/new).
 
 ## Develop
 
@@ -132,6 +154,8 @@ npm run dev      # tsx watch (stdio)
 npm run inspect  # open the MCP Inspector against the built server
 npm run build     # type-check + emit dist/
 npm run typecheck # type-check only
+npm test          # offline unit tests: SSRF guard, SPF/DMARC/DKIM scoring,
+                  # header parsing, HTTP transport defaults
 npm run smoke     # call all 19 tools on BOTH protocol eras and validate
                   # structuredContent against each tool's outputSchema
 ```
@@ -146,11 +170,15 @@ src/
 ├── index.ts        # transport selection (stdio | http), v2 SDK entry points
 ├── server.ts       # factory: registers every tool on one McpServer
 ├── core/           # pure logic, no MCP coupling — reusable & testable
+│   ├── validate.ts # input validation and the address classifier
+│   ├── netguard.ts # connect-time SSRF guard, redirect-safe fetch, capped bodies
 │   ├── dns.ts      # public-resolver DNS + DoH client
-│   ├── tls.ts      # certificate inspection
+│   ├── net.ts      # MX, CAA, DNSBL and propagation checks
+│   ├── tls.ts      # certificate inspection and trust
 │   ├── whois.ts    # port-43 WHOIS with IANA/registrar referral
 │   ├── http.ts     # security-header grading
-│   ├── geoip.ts    # offline IP geolocation
+│   ├── geoip.ts    # offline IP geolocation (database loaded on first use)
+│   ├── email-headers.ts  # raw header parsing and hop timing
 │   └── email-auth.ts  # SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI/DNSSEC + scoring
 └── tools/          # thin MCP wrappers (Zod schemas, descriptions, formatting)
 ```
