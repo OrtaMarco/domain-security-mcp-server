@@ -11,6 +11,10 @@ import {
 } from "../constants.js";
 import { scoreToGrade } from "../format.js";
 import { dohQuery, resolveMx, resolveTxtStrings } from "./dns.js";
+import { readTextCapped, safeFetch } from "./netguard.js";
+
+/** RFC 8461 policies are a few lines; anything larger is not a policy. */
+const MTA_STS_MAX_BYTES = 64 * 1024;
 
 export interface Finding {
   severity: "error" | "warning" | "info" | "ok";
@@ -333,26 +337,37 @@ export async function checkMtaSts(domain: string): Promise<MtaStsResult> {
   let policy: Record<string, string | string[]> | undefined;
 
   try {
-    const res = await fetch(`https://mta-sts.${domain}/.well-known/mta-sts.txt`, {
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-      headers: { "user-agent": "domain-security-mcp-server/1.0" },
+    // RFC 8461 §3.3: the policy is fetched over HTTPS without following
+    // redirects, and served as text/plain. Anything else means no policy.
+    const { res } = await safeFetch(new URL(`https://mta-sts.${domain}/.well-known/mta-sts.txt`), {
+      maxRedirects: 0,
+      headers: { "user-agent": "domain-security-mcp-server" },
     });
-    if (res.ok) {
-      const body = await res.text();
-      policy = {};
+    const type = res.headers.get("content-type") ?? "";
+    if (res.status === 200 && /^text\/plain\b/i.test(type)) {
+      const body = await readTextCapped(res, MTA_STS_MAX_BYTES);
+      const parsed: Record<string, string | string[]> = {};
       const mxs: string[] = [];
       for (const line of body.split(/\r?\n/)) {
-        const [k, v] = line.split(":").map((s) => s?.trim());
+        const sep = line.indexOf(":");
+        if (sep <= 0) continue;
+        const k = line.slice(0, sep).trim().toLowerCase();
+        const v = line.slice(sep + 1).trim();
         if (!k || !v) continue;
-        if (k.toLowerCase() === "mx") mxs.push(v);
-        else policy[k.toLowerCase()] = v;
+        if (k === "mx") mxs.push(v);
+        else parsed[k] = v;
       }
-      if (mxs.length) policy["mx"] = mxs;
-      mode = typeof policy["mode"] === "string" ? (policy["mode"] as string) : undefined;
-      policyFound = true;
+      if (mxs.length) parsed["mx"] = mxs;
+      if (parsed["version"] === "STSv1") {
+        policy = parsed;
+        mode = typeof parsed["mode"] === "string" ? parsed["mode"] : undefined;
+        policyFound = true;
+      }
+    } else {
+      await res.body?.cancel();
     }
   } catch {
-    // Policy file unreachable.
+    // Policy file unreachable, oversized, or refused by the SSRF guard.
   }
 
   if (!dnsRecord && !policyFound) {

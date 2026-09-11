@@ -55,9 +55,10 @@ export function registerEmailTools(server: McpServer): void {
   // Flagship: email_auth_audit
   // -------------------------------------------------------------------------
   const AuditInput = z.object({
-    domain: z.string().min(1).describe("Domain to audit, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to audit, e.g. 'example.com'."),
     dkim_selectors: z
-      .array(z.string())
+      .array(z.string().max(63))
+      .max(50)
       .optional()
       .describe(
         "Optional DKIM selectors to check (e.g. ['google','selector1']). If omitted, a list of common provider selectors is probed.",
@@ -133,7 +134,7 @@ Errors: returns an error only if the domain is malformed; missing records are re
   );
 
   const DomainInput = z.object({
-    domain: z.string().min(1).describe("Domain to check, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to check, e.g. 'example.com'."),
     response_format: responseFormatField,
   });
 
@@ -222,9 +223,10 @@ Example: "What is paypal.com's DMARC policy?" -> dmarc_check(domain="paypal.com"
   // dkim_check
   // -------------------------------------------------------------------------
   const DkimInput = z.object({
-    domain: z.string().min(1).describe("Domain to check, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to check, e.g. 'example.com'."),
     selectors: z
-      .array(z.string())
+      .array(z.string().max(63))
+      .max(50)
       .optional()
       .describe(
         "DKIM selectors to check (e.g. ['google']). If omitted, common provider selectors are probed — absence is then inconclusive.",

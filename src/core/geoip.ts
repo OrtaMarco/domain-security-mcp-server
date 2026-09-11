@@ -3,8 +3,20 @@
  * Ported from the ortamarco.me ip-lookup endpoint.
  */
 
-import geoip from "geoip-lite";
 import { reverseDns } from "./dns.js";
+
+type GeoipModule = typeof import("geoip-lite");
+let geoipModule: Promise<GeoipModule> | undefined;
+
+/**
+ * geoip-lite loads its whole database (~150 MB of RSS) synchronously on import,
+ * so it is imported on first use rather than at startup — a server that never
+ * geolocates an IP never pays for it.
+ */
+function loadGeoip(): Promise<GeoipModule> {
+  geoipModule ??= import("geoip-lite").then((m) => (m as { default?: GeoipModule }).default ?? m);
+  return geoipModule;
+}
 
 export interface IpInfo {
   ip: string;
@@ -29,7 +41,7 @@ function countryName(iso: string | undefined): string | undefined {
 
 /** Geolocate an IP and attempt a reverse-DNS lookup. */
 export async function geolocateIp(ip: string): Promise<IpInfo> {
-  const geo = geoip.lookup(ip);
+  const geo = (await loadGeoip()).lookup(ip);
 
   let hostname: string | undefined;
   try {
@@ -41,12 +53,13 @@ export async function geolocateIp(ip: string): Promise<IpInfo> {
 
   return {
     ip,
-    country_iso: geo?.country,
-    country_name: countryName(geo?.country),
+    country_iso: geo?.country || undefined,
+    country_name: countryName(geo?.country || undefined),
     region: geo?.region || undefined,
     city: geo?.city || undefined,
-    latitude: geo?.ll?.[0],
-    longitude: geo?.ll?.[1],
+    // geoip-lite answers [null, null] for some anycast ranges (Cloudflare 1.1.1.1).
+    latitude: geo?.ll?.[0] ?? undefined,
+    longitude: geo?.ll?.[1] ?? undefined,
     time_zone: geo?.timezone || undefined,
     hostname,
   };

@@ -43,6 +43,7 @@ const BlacklistHit = z.object({
   zone: z.string(),
   listed: z.boolean(),
   reason: z.string().nullable(),
+  error: z.string().nullable(),
 });
 const PropResolver = z.object({
   name: z.string(),
@@ -163,6 +164,9 @@ export const CertificateSchema = z.object({
   expires_soon: z.boolean(),
   serial_number: z.string().optional(),
   fingerprint_sha256: z.string().optional(),
+  trusted: z.boolean(),
+  authorization_error: z.string().optional(),
+  hostname_matches: z.boolean(),
 });
 
 export const WhoisSchema = z.object({

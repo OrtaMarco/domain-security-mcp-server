@@ -2,8 +2,14 @@
  * Shared constants for the domain-security MCP server.
  */
 
+import { createRequire } from "node:module";
+
 export const SERVER_NAME = "domain-security-mcp-server";
-export const SERVER_VERSION = "1.1.0";
+
+/** Read from package.json (always shipped) so the two can never disagree. */
+export const SERVER_VERSION: string = (
+  createRequire(import.meta.url)("../package.json") as { version: string }
+).version;
 
 /**
  * Public DNS resolvers (Cloudflare, Google, Quad9). Used instead of the host's

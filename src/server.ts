@@ -15,11 +15,12 @@ import { registerEmailTools } from "./tools/email.js";
 import { registerWebTools } from "./tools/web.js";
 import { registerExtraTools } from "./tools/extra.js";
 
-const INSTRUCTIONS = `Domain & email security toolkit. Every tool is read-only and uses public DNS, TLS, WHOIS and HTTPS — no API keys, no side effects.
+const INSTRUCTIONS = `Domain & email security toolkit. Every tool is read-only and uses public DNS, TLS, WHOIS and HTTPS — no API keys, no side effects. Private, loopback and reserved addresses are refused.
 
 Guidance:
 - To assess a domain's email security, start with \`email_auth_audit\` (it scores SPF + DKIM + DMARC + MX and lists fixes), then drill into \`spf_check\`, \`dmarc_check\`, \`dkim_check\`, \`mta_sts_check\`, \`tls_rpt_check\` or \`bimi_check\` for detail.
 - DKIM selectors are undiscoverable: pass the domain's selector to \`dkim_check\` for a definitive answer; a miss on common selectors is inconclusive.
+- For a website's HTTP hardening use \`http_security_headers\` (HSTS, CSP, X-Content-Type-Options, …).
 - For DNS/network questions use \`dns_lookup\`, \`mx_lookup\`, \`whois_lookup\`, \`ssl_certificate\`, \`dnssec_check\`, \`caa_check\`, \`dns_propagation\`, \`reverse_dns\` or \`ip_geolocation\`.
 - \`blacklist_check\` queries only open-access DNSBLs; Spamhaus/Barracuda are excluded.
 - All tools accept response_format='json' for structured output instead of the default markdown.`;

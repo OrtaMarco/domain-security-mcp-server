@@ -10,6 +10,8 @@
 
 import net from "node:net";
 import { DEFAULT_TIMEOUT_MS } from "../constants.js";
+import { assertPublicTarget, guardedLookup } from "./netguard.js";
+import { validateHost, withTimeout } from "./validate.js";
 
 const IANA_WHOIS = "whois.iana.org";
 
@@ -26,10 +28,30 @@ export interface WhoisInfo {
   raw: string;
 }
 
-/** Send a single WHOIS query to `server:43` and return the raw text response. */
+/** Cap on the raw record returned to the caller (the socket read is capped separately). */
+const MAX_RAW_CHARS = 20_000;
+
+/**
+ * Send a single WHOIS query to `server:43` and return the raw text response.
+ * The server name comes from IANA or from a registry's referral text, so it is
+ * treated as untrusted: it must look like a hostname, and the connection goes
+ * through the SSRF-guarded lookup under an overall deadline (the socket's own
+ * timeout only measures inactivity, which a slow drip keeps resetting).
+ */
 function whoisQuery(query: string, server: string): Promise<string> {
+  const host = validateHost(server);
+  if (!host) return Promise.reject(new Error(`'${server}' is not a valid WHOIS server name.`));
+  try {
+    assertPublicTarget(host);
+  } catch (err) {
+    return Promise.reject(err);
+  }
+  return withTimeout(rawWhoisQuery(query, host), DEFAULT_TIMEOUT_MS * 2, `whois ${host}`);
+}
+
+function rawWhoisQuery(query: string, server: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const socket = net.connect({ host: server, port: 43 }, () => {
+    const socket = net.connect({ host: server, port: 43, lookup: guardedLookup }, () => {
       socket.write(`${query}\r\n`);
     });
     let data = "";
@@ -67,8 +89,8 @@ function allMatches(text: string, re: RegExp): string[] {
 /** Find the WHOIS server a referral response points to. */
 function referralServer(text: string): string | undefined {
   return (
-    firstMatch(text, /(?:refer|whois):\s*(\S+)/i) ??
-    firstMatch(text, /Registrar WHOIS Server:\s*(\S+)/i)
+    firstMatch(text, /^\s*(?:refer|whois):\s*(\S+)/im) ??
+    firstMatch(text, /^\s*Registrar WHOIS Server:\s*(\S+)/im)
   );
 }
 
@@ -93,7 +115,7 @@ export async function lookupWhois(domain: string): Promise<WhoisInfo> {
   let server = IANA_WHOIS;
   try {
     const ianaText = await whoisQuery(tld, IANA_WHOIS);
-    server = firstMatch(ianaText, /whois:\s*(\S+)/i) ?? IANA_WHOIS;
+    server = firstMatch(ianaText, /^\s*whois:\s*(\S+)/im) ?? IANA_WHOIS;
   } catch {
     // Fall back to querying IANA directly for the domain.
   }
@@ -134,6 +156,9 @@ export async function lookupWhois(domain: string): Promise<WhoisInfo> {
     ),
     status: allMatches(raw, /(?:Domain Status|status):\s*(\S+)/gi),
     registrant_org: firstMatch(raw, /Registrant Organization:\s*(.+)/i),
-    raw: raw.trim(),
+    raw:
+      raw.trim().length > MAX_RAW_CHARS
+        ? `${raw.trim().slice(0, MAX_RAW_CHARS)}\n…[raw record truncated at ${MAX_RAW_CHARS} characters]`
+        : raw.trim(),
   };
 }

@@ -1,9 +1,9 @@
 {
   "name": "domain-security-mcp-server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MCP server for domain and email security audits — SPF, DKIM, DMARC, MTA-STS, BIMI, DNSSEC, DNS, TLS/SSL and WHOIS. No API keys required.",
+  "mcpName": "io.github.OrtaMarco/domain-security-mcp-server",
   "type": "module",
-  "main": "dist/index.js",
   "bin": {
     "domain-security-mcp-server": "dist/index.js"
   },
@@ -14,14 +14,17 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepare": "npm run build",
+    "prepack": "npm run build",
     "start": "node dist/index.js",
     "start:http": "TRANSPORT=http node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "smoke": "node scripts/smoke-all.mjs",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test scripts/units.test.mjs",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "mcp",
@@ -40,15 +43,24 @@
     "deliverability"
   ],
   "author": "Marco Orta <https://ortamarco.me>",
+  "homepage": "https://github.com/OrtaMarco/domain-security-mcp-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OrtaMarco/domain-security-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OrtaMarco/domain-security-mcp-server/issues"
+  },
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.1"
   },
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "express": "^4.21.2",
     "geoip-lite": "^1.4.10",
+    "undici": "^7.29.1",
     "zod": "^4.6.1"
   },
   "devDependencies": {

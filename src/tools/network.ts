@@ -10,7 +10,7 @@ import { resolveAllRecords, reverseDns, type NormalizedRecord } from "../core/dn
 import { inspectCertificate } from "../core/tls.js";
 import { geolocateIp } from "../core/geoip.js";
 import { lookupWhois } from "../core/whois.js";
-import { errMessage, resolvesToPrivate, validateHost, validateIp } from "../core/validate.js";
+import { errMessage, isPrivateHost, validateHost, validateIp } from "../core/validate.js";
 import {
   CertificateSchema,
   DnsLookupSchema,
@@ -41,7 +41,7 @@ function renderDns(host: string, records: Record<string, NormalizedRecord[]>): s
 
 export function registerNetworkTools(server: McpServer): void {
   const DnsInput = z.object({
-    domain: z.string().min(1).describe("Domain to query, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to query, e.g. 'example.com'."),
     response_format: responseFormatField,
   });
 
@@ -82,7 +82,7 @@ Errors: returns an error if the domain is malformed or has no resolvable records
   );
 
   const IpInput = z.object({
-    ip: z.string().min(1).describe("IPv4 or IPv6 address, e.g. '1.1.1.1'."),
+    ip: z.string().min(1).max(45).describe("IPv4 or IPv6 address, e.g. '1.1.1.1'."),
     response_format: responseFormatField,
   });
 
@@ -160,7 +160,7 @@ Note: geolocation is approximate (city-level at best) and offline data may lag r
   );
 
   const SslInput = z.object({
-    domain: z.string().min(1).describe("Domain (or host) to inspect, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain (or host) to inspect, e.g. 'example.com'."),
     port: z.number().int().min(1).max(65535).default(443).describe("TLS port (default 443)."),
     response_format: responseFormatField,
   });
@@ -176,7 +176,7 @@ Args:
   - port (number): TLS port (default 443).
   - response_format ('markdown' | 'json'): output format (default 'markdown').
 
-Returns: certificate fields plus { days_until_expiry, expired, expires_soon }.
+Returns: certificate fields plus { days_until_expiry, expired, expires_soon, trusted, hostname_matches, authorization_error }. An untrusted certificate (self-signed, unknown root, wrong host) is still inspected and reported, never silently passed.
 
 Example: "When does github.com's certificate expire?" -> ssl_certificate(domain="github.com").
 Errors: returns an error if the host is unreachable or serves no certificate.`,
@@ -187,8 +187,8 @@ Errors: returns an error if the host is unreachable or serves no certificate.`,
     async ({ domain, port, response_format }) => {
       const host = validateHost(domain);
       if (!host) return fail(`Error: '${domain}' is not a valid domain name.`);
-      if (await resolvesToPrivate(host)) {
-        return fail(`Error: '${host}' resolves to a private or reserved address; refusing to connect to it.`);
+      if (isPrivateHost(host)) {
+        return fail(`Error: '${host}' is a private or reserved host; refusing to connect to it.`);
       }
       try {
         const cert = await inspectCertificate(host, port);
@@ -205,6 +205,7 @@ Errors: returns an error if the host is unreachable or serves no certificate.`,
             `- **Issuer**: ${cert.issuer_organization ?? cert.issuer_common_name ?? "—"}`,
             `- **Valid**: ${cert.valid_from ?? "—"} → ${cert.valid_to ?? "—"}`,
             `- **Status**: ${expiry}`,
+            `- **Trusted**: ${cert.trusted ? "✅ yes" : `❌ no — ${!cert.hostname_matches ? "the certificate does not cover this host" : cert.authorization_error ?? "the chain does not validate"}`}`,
             `- **SANs**: ${cert.subject_alt_names.slice(0, 12).join(", ") || "—"}`,
             `- **SHA-256**: ${cert.fingerprint_sha256 ?? "—"}`,
           ].join("\n");
@@ -216,7 +217,7 @@ Errors: returns an error if the host is unreachable or serves no certificate.`,
   );
 
   const WhoisInput = z.object({
-    domain: z.string().min(1).describe("Domain to look up, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to look up, e.g. 'example.com'."),
     response_format: responseFormatField,
   });
 

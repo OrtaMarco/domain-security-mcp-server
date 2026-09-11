@@ -5,7 +5,7 @@
 
 import { DEFAULT_TIMEOUT_MS } from "../constants.js";
 import { scoreToGrade } from "../format.js";
-import { resolvesToPrivate } from "./validate.js";
+import { safeFetch } from "./netguard.js";
 
 interface HeaderCheck {
   header: string;
@@ -76,47 +76,19 @@ const HEADER_SPECS: HeaderSpec[] = [
   },
 ];
 
-const USER_AGENT = "domain-security-mcp-server/1.0 (+https://ortamarco.me)";
+const USER_AGENT = "domain-security-mcp-server (+https://github.com/OrtaMarco/domain-security-mcp-server)";
 const MAX_REDIRECTS = 5;
-
-/**
- * Fetch `start`, following redirects manually so every hop is re-checked by the
- * SSRF guard — otherwise a public URL could issue a 30x redirect into an
- * internal address. Returns the final response and the URL it came from.
- */
-async function ssrfSafeFetch(start: URL): Promise<{ res: Response; finalUrl: string }> {
-  let current = start;
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (await resolvesToPrivate(current.hostname)) {
-      throw new Error(
-        `Refusing to fetch ${current.hostname}: it resolves to a private or reserved address.`,
-      );
-    }
-    const res = await fetch(current.toString(), {
-      method: "GET",
-      redirect: "manual",
-      headers: { "user-agent": USER_AGENT },
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-    });
-    const location = res.headers.get("location");
-    if (res.status >= 300 && res.status < 400 && location) {
-      const next = new URL(location, current);
-      if (next.protocol !== "http:" && next.protocol !== "https:") {
-        throw new Error("Refusing to follow a redirect to a non-HTTP(S) URL.");
-      }
-      current = next;
-      continue;
-    }
-    return { res, finalUrl: current.toString() };
-  }
-  throw new Error(`Too many redirects (more than ${MAX_REDIRECTS}).`);
-}
 
 /** Fetch a URL and evaluate its security headers. */
 export async function analyzeSecurityHeaders(
   url: URL,
 ): Promise<SecurityHeadersReport> {
-  const { res, finalUrl } = await ssrfSafeFetch(url);
+  // Every hop is screened and every connection is guarded (see netguard.ts).
+  const { res, finalUrl } = await safeFetch(url, {
+    maxRedirects: MAX_REDIRECTS,
+    headers: { "user-agent": USER_AGENT },
+  });
+  await res.body?.cancel(); // only the headers matter
 
   const checks: HeaderCheck[] = HEADER_SPECS.map((spec) => {
     const value = res.headers.get(spec.header) ?? undefined;

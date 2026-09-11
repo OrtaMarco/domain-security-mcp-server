@@ -7,7 +7,7 @@ import { Resolver } from "node:dns/promises";
 import { isIP } from "node:net";
 import { DEFAULT_TIMEOUT_MS } from "../constants.js";
 import { resolver } from "./dns.js";
-import { withTimeout } from "./validate.js";
+import { errMessage, withTimeout } from "./validate.js";
 
 // --- CAA -------------------------------------------------------------------
 
@@ -40,8 +40,8 @@ export async function analyzeCaa(domain: string): Promise<CaaResult> {
 // --- DNSBL blacklist -------------------------------------------------------
 
 // Open-access DNSBLs only. Spamhaus/Barracuda refuse public-resolver queries.
+// SORBS is gone (its 127.0.0.2 test point answers NXDOMAIN), so it is not queried.
 export const DNSBL_ZONES: { zone: string; name: string }[] = [
-  { zone: "dnsbl.sorbs.net", name: "SORBS" },
   { zone: "bl.spamcop.net", name: "SpamCop" },
   { zone: "dnsbl-1.uceprotect.net", name: "UCEPROTECT-1" },
   { zone: "dnsbl.dronebl.org", name: "DroneBL" },
@@ -53,6 +53,8 @@ export interface BlacklistHit {
   zone: string;
   listed: boolean;
   reason: string | null;
+  /** Set when the list could not be queried — then `listed: false` means "unknown", not "clean". */
+  error: string | null;
 }
 
 export interface BlacklistResult {
@@ -79,9 +81,15 @@ async function checkIpAgainstZones(ip: string): Promise<BlacklistHit[]> {
         } catch {
           /* no TXT */
         }
-        return { list: name, zone, listed: true, reason };
-      } catch {
-        return { list: name, zone, listed: false, reason: null };
+        return { list: name, zone, listed: true, reason, error: null };
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        // NXDOMAIN / NODATA is the DNSBL's way of saying "not listed"; anything
+        // else (timeout, SERVFAIL, refused) means the list did not answer.
+        if (code === "ENOTFOUND" || code === "ENODATA") {
+          return { list: name, zone, listed: false, reason: null, error: null };
+        }
+        return { list: name, zone, listed: false, reason: null, error: errMessage(err) };
       }
     }),
   );

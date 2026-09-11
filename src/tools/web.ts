@@ -19,7 +19,7 @@ const READ_ONLY = {
 
 export function registerWebTools(server: McpServer): void {
   const UrlInput = z.object({
-    url: z.string().min(1).describe("URL or host to check, e.g. 'https://example.com'."),
+    url: z.string().min(1).max(2048).describe("URL or host to check, e.g. 'https://example.com'."),
     response_format: responseFormatField,
   });
 
@@ -62,7 +62,7 @@ Errors: returns an error if the URL is invalid or the host is unreachable.`,
   );
 
   const DomainInput = z.object({
-    domain: z.string().min(1).describe("Domain to check, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to check, e.g. 'example.com'."),
     response_format: responseFormatField,
   });
 

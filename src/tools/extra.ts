@@ -32,10 +32,13 @@ const READ_ONLY = {
   openWorldHint: true,
 } as const;
 
+/** For tools that never leave the process. */
+const OFFLINE = { ...READ_ONLY, openWorldHint: false } as const;
+
 export function registerExtraTools(server: McpServer): void {
   // --- caa_check -----------------------------------------------------------
   const DomainInput = z.object({
-    domain: z.string().min(1).describe("Domain to query, e.g. 'example.com'."),
+    domain: z.string().min(1).max(253).describe("Domain to query, e.g. 'example.com'."),
     response_format: responseFormatField,
   });
 
@@ -111,7 +114,7 @@ Example: "What are the mail servers for github.com?" -> mx_lookup(domain="github
 
   // --- blacklist_check -----------------------------------------------------
   const BlacklistInput = z.object({
-    query: z.string().min(1).describe("An IPv4 address or a domain to check against DNSBLs."),
+    query: z.string().min(1).max(253).describe("An IPv4 address or a domain to check against DNSBLs."),
     response_format: responseFormatField,
   });
 
@@ -119,13 +122,13 @@ Example: "What are the mail servers for github.com?" -> mx_lookup(domain="github
     "blacklist_check",
     {
       title: "DNSBL Blacklist Check",
-      description: `Check whether an IPv4 address (or a domain's A records) appears on email DNS blocklists (DNSBLs). Only open-access lists are queried (SORBS, SpamCop, UCEPROTECT-1, DroneBL, s5h); Spamhaus and Barracuda refuse public-resolver queries and are excluded.
+      description: `Check whether an IPv4 address (or a domain's A records) appears on email DNS blocklists (DNSBLs). Only open-access lists are queried (SpamCop, UCEPROTECT-1, DroneBL, s5h); Spamhaus and Barracuda refuse public-resolver queries and are excluded.
 
 Args:
   - query (string): an IPv4 address or a domain.
   - response_format ('markdown' | 'json'): output format (default 'markdown').
 
-Returns: { ips[], listedCount, checked, results[{ip, hits[{list, listed, reason}]}], note }.
+Returns: { ips[], listedCount, checked, results[{ip, hits[{list, listed, reason, error}]}], note }. A list that did not answer carries an \`error\` and is not counted as clean.
 
 Example: "Is 203.0.113.5 blacklisted?" -> blacklist_check(query="203.0.113.5").`,
       inputSchema: BlacklistInput,
@@ -141,7 +144,14 @@ Example: "Is 203.0.113.5 blacklisted?" -> blacklist_check(query="203.0.113.5").`
         return respond(r, response_format, () => {
           const lines = [`# Blacklist — ${sanitized}`, ""];
           if (r.ips.length === 0) lines.push("Could not resolve any IP to check.");
-          else lines.push(r.listedCount === 0 ? `✅ Clean — not listed on any of ${r.checked} lists.` : `❌ Listed ${r.listedCount} time(s).`);
+          else {
+            const unanswered = r.results.flatMap((res) => res.hits.filter((h) => h.error).map((h) => h.list));
+            const answered = r.results.reduce((n, res) => n + res.hits.filter((h) => !h.error).length, 0);
+            if (r.listedCount > 0) lines.push(`❌ Listed ${r.listedCount} time(s).`);
+            else if (answered === 0) lines.push("⚠️ No list answered — the result is unknown, not clean.");
+            else lines.push(`✅ Not listed on the ${answered} list check(s) that answered.`);
+            if (unanswered.length) lines.push(`⚠️ Could not check: ${[...new Set(unanswered)].join(", ")}.`);
+          }
           for (const res of r.results) {
             const listed = res.hits.filter((h) => h.listed);
             if (listed.length) lines.push(`\n${res.ip}: ${listed.map((h) => h.list).join(", ")}`);
@@ -157,7 +167,7 @@ Example: "Is 203.0.113.5 blacklisted?" -> blacklist_check(query="203.0.113.5").`
 
   // --- dns_propagation -----------------------------------------------------
   const PropagationInput = z.object({
-    domain: z.string().min(1).describe("Domain to check."),
+    domain: z.string().min(1).max(253).describe("Domain to check."),
     type: z.enum(["A", "AAAA", "CNAME", "MX", "NS", "TXT"]).default("A").describe("Record type (default 'A')."),
     response_format: responseFormatField,
   });
@@ -202,7 +212,7 @@ Example: "Has the A record for example.com propagated?" -> dns_propagation(domai
 
   // --- analyze_email_headers ----------------------------------------------
   const HeadersInput = z.object({
-    headers: z.string().min(1).describe("The raw email headers to analyze (RFC 5322)."),
+    headers: z.string().min(1).max(200_000).describe("The raw email headers to analyze (RFC 5322)."),
     response_format: responseFormatField,
   });
 
@@ -221,7 +231,7 @@ Returns: { auth{spf,dkim,dmarc}, fields{}, hops[{index,from,by,date,delaySec}], 
 Example: paste the headers from "Show original" in Gmail to trace a message's path and authentication.`,
       inputSchema: HeadersInput,
       outputSchema: HeadersAnalysisSchema,
-      annotations: READ_ONLY,
+      annotations: OFFLINE,
     },
     async ({ headers, response_format }) => {
       try {

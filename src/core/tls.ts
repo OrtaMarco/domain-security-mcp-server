@@ -5,8 +5,9 @@
  * expiry-window analysis.
  */
 
-import { connect, type PeerCertificate } from "node:tls";
+import { checkServerIdentity, connect, type PeerCertificate } from "node:tls";
 import { DEFAULT_TIMEOUT_MS } from "../constants.js";
+import { assertPublicTarget, guardedLookup } from "./netguard.js";
 
 export interface CertificateInfo {
   host: string;
@@ -22,21 +23,37 @@ export interface CertificateInfo {
   expires_soon: boolean;
   serial_number?: string;
   fingerprint_sha256?: string;
+  /** The chain validates against Node's trusted roots AND the certificate covers the host. */
+  trusted: boolean;
+  /** Why the chain did not validate (e.g. SELF_SIGNED_CERT_IN_CHAIN), if it did not. */
+  authorization_error?: string;
+  /** Whether the certificate's names cover the requested host. */
+  hostname_matches: boolean;
 }
 
-function getPeerCertificate(host: string, port: number): Promise<PeerCertificate> {
+interface PeerResult {
+  cert: PeerCertificate;
+  authorized: boolean;
+  authorizationError?: string;
+}
+
+function getPeerCertificate(host: string, port: number): Promise<PeerResult> {
   return new Promise((resolve, reject) => {
+    // rejectUnauthorized stays off so an invalid certificate can still be
+    // inspected; its trust is reported through `authorized` instead.
     const socket = connect(
-      { host, port, servername: host, rejectUnauthorized: false },
+      { host, port, servername: host, rejectUnauthorized: false, lookup: guardedLookup },
       () => {
         try {
           const cert = socket.getPeerCertificate(true);
+          const authorized = socket.authorized;
+          const authorizationError = socket.authorizationError ? String(socket.authorizationError) : undefined;
           socket.end();
           if (!cert || Object.keys(cert).length === 0) {
             reject(new Error("The server returned an empty certificate."));
             return;
           }
-          resolve(cert);
+          resolve({ cert, authorized, authorizationError });
         } catch (err) {
           socket.destroy();
           reject(err);
@@ -65,7 +82,9 @@ export async function inspectCertificate(
   host: string,
   port = 443,
 ): Promise<CertificateInfo> {
-  const cert = await getPeerCertificate(host, port);
+  assertPublicTarget(host);
+  const { cert, authorized, authorizationError } = await getPeerCertificate(host, port);
+  const hostnameMatches = checkServerIdentity(host, cert) === undefined;
   const subject = (cert.subject ?? {}) as Record<string, unknown>;
   const issuer = (cert.issuer ?? {}) as Record<string, unknown>;
 
@@ -94,5 +113,8 @@ export async function inspectCertificate(
     expires_soon: daysUntilExpiry !== undefined && daysUntilExpiry >= 0 && daysUntilExpiry <= 14,
     serial_number: cert.serialNumber,
     fingerprint_sha256: cert.fingerprint256,
+    trusted: authorized && hostnameMatches,
+    authorization_error: authorizationError,
+    hostname_matches: hostnameMatches,
   };
 }

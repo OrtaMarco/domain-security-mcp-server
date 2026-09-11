@@ -28,7 +28,7 @@ export function truncate(text: string): string {
   if (text.length <= CHARACTER_LIMIT) return text;
   return (
     text.slice(0, CHARACTER_LIMIT) +
-    `\n\n…[truncated ${text.length - CHARACTER_LIMIT} characters — request response_format='json' or a narrower query for the full payload]`
+    `\n\n…[truncated ${text.length - CHARACTER_LIMIT} characters — the complete result is in the tool's structuredContent; narrow the query to see it here]`
   );
 }
 
