@@ -55,6 +55,12 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: server.json declara la misma versión y mcpName que package.json
+        run: |
+          test "$(jq -r .name server.json)" = "$(jq -r .mcpName package.json)"
+          test "$(jq -r .version server.json)" = "$(jq -r .version package.json)"
+          test "$(jq -r '.packages[0].version' server.json)" = "$(jq -r .version package.json)"
+
       - run: npm ci
       # `npm pack` corre `prepack` (build), así que prueba lo mismo que se publicaría.
       - run: npm pack

@@ -46,3 +46,8 @@ jobs:
           fi
 
       - run: npm publish --access public
+
+  # Con la versión ya en npm, el mismo release sale en el registro de MCP.
+  mcp-registry:
+    needs: publish
+    uses: ./.github/workflows/mcp-registry.yml

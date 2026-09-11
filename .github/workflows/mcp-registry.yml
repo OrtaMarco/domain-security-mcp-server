@@ -1,0 +1,53 @@
+name: mcp-registry
+
+# Publica server.json en el registro oficial de MCP (registry.modelcontextprotocol.io).
+#
+# Sin secretos: la identidad es el OIDC de GitHub Actions, y el registro sólo concede el
+# namespace io.github.OrtaMarco/* a workflows de repos de OrtaMarco. Además comprueba que el
+# paquete de npm de esa versión declara el mismo mcpName, así que npm tiene que ir primero.
+#
+# publish.yml lo llama tras publicar en npm; para una versión ya publicada se lanza a mano:
+#   gh workflow run mcp-registry.yml
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: server.json, package.json y npm dicen lo mismo
+        run: |
+          name=$(jq -r .name package.json)
+          version=$(jq -r .version package.json)
+          mcp=$(jq -r .mcpName package.json)
+          test "$(jq -r .name server.json)" = "$mcp"
+          test "$(jq -r .version server.json)" = "$version"
+          test "$(jq -r '.packages[0].identifier' server.json)" = "$name"
+          test "$(jq -r '.packages[0].version' server.json)" = "$version"
+          # Recién publicado, npm tarda unos segundos en servir la versión.
+          for i in $(seq 1 20); do
+            published=$(npm view "$name@$version" mcpName 2>/dev/null || true)
+            [ -n "$published" ] && break
+            sleep 15
+          done
+          if [ "$published" != "$mcp" ]; then
+            echo "npm no sirve $name@$version con mcpName $mcp (tiene: '${published}')" >&2
+            exit 1
+          fi
+
+      - name: Instala mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish
