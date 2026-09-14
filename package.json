@@ -1,6 +1,6 @@
 {
   "name": "domain-security-mcp-server",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MCP server for domain and email security audits — SPF, DKIM, DMARC, MTA-STS, BIMI, DNSSEC, DNS, TLS/SSL and WHOIS. No API keys required.",
   "mcpName": "io.github.OrtaMarco/domain-security-mcp-server",
   "type": "module",
