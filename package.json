@@ -57,17 +57,18 @@
     "node": ">=20.18.1"
   },
   "dependencies": {
+    "@ip-location-db/dbip-city-mmdb": "^2.3.2026060513",
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
+    "@photostructure/tz-lookup": "^11.6.1",
     "express": "^5.2.1",
-    "geoip-lite": "^1.4.10",
+    "mmdb-lib": "^3.0.3",
     "undici": "^7.29.1",
     "zod": "^4.6.1"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/express": "^5.0.6",
-    "@types/geoip-lite": "^1.4.4",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

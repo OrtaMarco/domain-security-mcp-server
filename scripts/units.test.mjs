@@ -1,7 +1,8 @@
 /**
  * Deterministic unit tests for the logic the real-network smoke test cannot pin
- * down: input validation and the SSRF guard, the SPF / DMARC / DKIM analysers
- * and the audit score, email-header parsing, and the response helpers.
+ * down: input validation and the SSRF guard, offline geolocation, the SPF /
+ * DMARC / DKIM analysers and the audit score, email-header parsing, and the
+ * response helpers.
  *
  * No test touches the network. The DNS-backed analysers run against a fake
  * resolver installed on the shared `resolver` instance that every lookup in
@@ -15,7 +16,10 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
 import { Agent } from "undici";
+import { Reader } from "mmdb-lib";
 
 import { createGuardedLookup, safeFetch, readTextCapped } from "../dist/core/netguard.js";
 
@@ -31,6 +35,7 @@ import {
 import { resolver } from "../dist/core/dns.js";
 import { checkSpf, checkDmarc, checkDkim, auditEmailAuth } from "../dist/core/email-auth.js";
 import { parseEmailHeaders } from "../dist/core/email-headers.js";
+import { lookupLocation } from "../dist/core/geoip.js";
 import { truncate, respond, fail, scoreToGrade, ResponseFormat } from "../dist/format.js";
 import { CHARACTER_LIMIT, COMMON_DKIM_SELECTORS } from "../dist/constants.js";
 
@@ -354,6 +359,51 @@ test("errMessage reads Error instances and stringifies anything else", () => {
   assert.equal(errMessage(new Error("x")), "x");
   assert.equal(errMessage("plain"), "plain");
   assert.equal(errMessage(404), "404");
+});
+
+// ---------------------------------------------------------------------------
+// Offline geolocation (DB-IP Lite, no network)
+// ---------------------------------------------------------------------------
+
+/** The raw record straight from one of the two MMDB files, bypassing geoip.ts. */
+async function rawDbipRecord(file, ip) {
+  const path = createRequire(import.meta.url).resolve(`@ip-location-db/dbip-city-mmdb/${file}`);
+  return new Reader(await readFile(path)).get(ip);
+}
+
+test("lookupLocation reads the IPv4 file and estimates the time zone from the coordinates", async () => {
+  const loc = await lookupLocation("8.8.8.8");
+  assert.equal(loc.country_iso, "US");
+  assert.equal(loc.country_name, "United States");
+  assert.equal(typeof loc.latitude, "number");
+  assert.equal(typeof loc.longitude, "number");
+  // Four decimals at most: the file's float32 noise does not leak into the output.
+  assert.equal(loc.latitude, Math.round(loc.latitude * 1e4) / 1e4);
+  assert.match(loc.time_zone ?? "", /^America\//);
+});
+
+test("lookupLocation asks the IPv6 file about IPv6, never the IPv4 one", async () => {
+  // The IPv4 file answers an IPv6 query with the record of its first 32 bits.
+  const ip = "2001:4860:4860::8888";
+  const expected = await rawDbipRecord("dbip-city-ipv6.mmdb", ip);
+  assert.ok(expected, "the IPv6 file should know Google's public resolver");
+  const loc = await lookupLocation(ip);
+  assert.equal(loc.country_iso, expected.country_code);
+  assert.equal(loc.city, expected.city || undefined);
+  assert.equal(loc.region, expected.state1 || undefined);
+});
+
+test("lookupLocation reads IPv4-mapped IPv6, dotted or hex, from the IPv4 file", async () => {
+  const plain = await lookupLocation("8.8.8.8");
+  assert.deepEqual(await lookupLocation("::ffff:8.8.8.8"), plain);
+  assert.deepEqual(await lookupLocation("::FFFF:808:808"), plain);
+  assert.deepEqual(await lookupLocation("0:0:0:0:0:ffff:8.8.8.8"), plain);
+});
+
+test("lookupLocation answers {} for private, unrouted and invalid addresses", async () => {
+  for (const ip of ["192.168.1.1", "10.0.0.1", "::1", "not-an-ip", ""]) {
+    assert.deepEqual(await lookupLocation(ip), {}, ip);
+  }
 });
 
 // ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import * as z from "zod/v4";
 import { ResponseFormat, fail, respond, responseFormatField } from "../format.js";
 import { resolveAllRecords, reverseDns, type NormalizedRecord } from "../core/dns.js";
 import { inspectCertificate } from "../core/tls.js";
-import { geolocateIp } from "../core/geoip.js";
+import { GEOIP_ATTRIBUTION, geolocateIp } from "../core/geoip.js";
 import { lookupWhois } from "../core/whois.js";
 import { errMessage, isPrivateHost, validateHost, validateIp } from "../core/validate.js";
 import {
@@ -123,7 +123,7 @@ Errors: returns an error if the IP is invalid or has no PTR record.`,
     "ip_geolocation",
     {
       title: "IP Geolocation",
-      description: `Geolocate an IP address (country, region, city, coordinates, time zone) using an offline database, plus its reverse-DNS hostname. No external API.
+      description: `Geolocate an IP address (country, region, city, coordinates, time zone) using the offline DB-IP Lite database, plus its reverse-DNS hostname. No external API.
 
 Args:
   - ip (string): IPv4 or IPv6 address.
@@ -132,7 +132,8 @@ Args:
 Returns: { ip, country_iso, country_name, region, city, latitude, longitude, time_zone, hostname }.
 
 Example: "Where is 151.101.1.69 located?" -> ip_geolocation(ip="151.101.1.69").
-Note: geolocation is approximate (city-level at best) and offline data may lag reality.`,
+Note: geolocation is approximate (city-level at best) and offline data may lag reality. The time zone is estimated from the coordinates.
+Data: ${GEOIP_ATTRIBUTION}, licensed CC BY 4.0 — credit it when showing these results.`,
       inputSchema: IpInput,
       outputSchema: IpInfoSchema,
       annotations: READ_ONLY,
@@ -151,6 +152,8 @@ Note: geolocation is approximate (city-level at best) and offline data may lag r
             `- **Coordinates**: ${info.latitude ?? "—"}, ${info.longitude ?? "—"}`,
             `- **Time zone**: ${info.time_zone ?? "—"}`,
             `- **Hostname**: ${info.hostname ?? "—"}`,
+            "",
+            `_${GEOIP_ATTRIBUTION}_`,
           ].join("\n"),
         );
       } catch (err) {

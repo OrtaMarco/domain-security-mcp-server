@@ -59,7 +59,7 @@ It is the agent-facing companion to the network tools at
 | `ssl_certificate` | TLS cert issuer, validity window, days-to-expiry, SANs, fingerprint |
 | `whois_lookup` | Registrar, dates, name servers, status (raw port-43 WHOIS, IANA-resolved) |
 | `reverse_dns` | PTR records for an IP |
-| `ip_geolocation` | Offline IP geolocation + reverse DNS |
+| `ip_geolocation` | Offline IP geolocation ([DB-IP Lite](https://db-ip.com)) + reverse DNS |
 | `mx_lookup` | Mail servers (MX) with priority and resolved IPs |
 | `caa_check` | Which CAs may issue TLS certificates (CAA records) |
 | `blacklist_check` | IP/domain against open-access email DNSBLs |
@@ -177,7 +177,7 @@ src/
 │   ├── tls.ts      # certificate inspection and trust
 │   ├── whois.ts    # port-43 WHOIS with IANA/registrar referral
 │   ├── http.ts     # security-header grading
-│   ├── geoip.ts    # offline IP geolocation (database loaded on first use)
+│   ├── geoip.ts    # offline IP geolocation on DB-IP Lite (each file read on first use)
 │   ├── email-headers.ts  # raw header parsing and hop timing
 │   └── email-auth.ts  # SPF/DKIM/DMARC/MTA-STS/TLS-RPT/BIMI/DNSSEC + scoring
 └── tools/          # thin MCP wrappers (Zod schemas, descriptions, formatting)
@@ -185,6 +185,16 @@ src/
 
 The `core/` layer is deliberately free of any MCP types, so the exact same logic
 powers both this server and the web tools on ortamarco.me.
+
+## Credits
+
+<a href='https://db-ip.com'>IP Geolocation by DB-IP</a>. `ip_geolocation` uses the
+free DB-IP "IP to City Lite" database, licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and installed as the
+[`@ip-location-db/dbip-city-mmdb`](https://www.npmjs.com/package/@ip-location-db/dbip-city-mmdb)
+package; the credit also appears in the tool's description and Markdown output. The
+database has no time zone, so `time_zone` is estimated from the coordinates with
+[`@photostructure/tz-lookup`](https://github.com/photostructure/tz-lookup) (CC0).
 
 ## License
 
