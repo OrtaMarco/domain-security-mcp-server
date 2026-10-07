@@ -208,11 +208,17 @@ export async function checkDmarc(domain: string): Promise<DmarcResult> {
     if (k && v) tags[k.toLowerCase()] = v;
   }
 
-  const policy = tags["p"];
+  // Policy values are case-insensitive (RFC 7489 §6.4), so 'p=NONE' is monitor-only.
+  const policy = tags["p"]?.toLowerCase();
   if (!policy) {
     findings.push({
       severity: "error",
       message: "DMARC record is missing the required 'p=' policy tag.",
+    });
+  } else if (!["none", "quarantine", "reject"].includes(policy)) {
+    findings.push({
+      severity: "error",
+      message: `DMARC policy 'p=${tags["p"]}' is not valid. Use 'none', 'quarantine' or 'reject'; receivers ignore a record with an invalid policy.`,
     });
   } else if (policy === "none") {
     findings.push({
@@ -557,9 +563,13 @@ export async function auditEmailAuth(
     score -= 30;
     recs.push("Publish a DMARC record (start with 'p=none; rua=…').");
   } else {
-    if (dmarc.policy === "none") {
+    if (dmarc.policy !== "quarantine" && dmarc.policy !== "reject") {
       score -= 15;
-      recs.push("Move DMARC from 'p=none' to 'quarantine' then 'reject'.");
+      recs.push(
+        dmarc.policy === "none"
+          ? "Move DMARC from 'p=none' to 'quarantine' then 'reject'."
+          : "Fix the DMARC 'p=' policy: it is missing or invalid, so nothing is enforced.",
+      );
     }
     if (!dmarc.tags["rua"]) {
       score -= 5;

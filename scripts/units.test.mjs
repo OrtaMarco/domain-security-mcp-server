@@ -520,6 +520,18 @@ test("DMARC without a p= tag is an error, and no record at all is an error", asy
   assert.deepEqual(severities(missing.findings), ["error"]);
 });
 
+test("DMARC policy values are case-insensitive and an unknown policy is an error", async () => {
+  txt["_dmarc.example.com"] = ["v=DMARC1; p=NONE; rua=mailto:d@example.com"];
+  const upper = await checkDmarc("example.com");
+  assert.equal(upper.policy, "none");
+  assert.deepEqual(severities(upper.findings), ["warning"]);
+  assert.equal((await auditEmailAuth("example.com", [])).dmarc.policy, "none");
+
+  txt["_dmarc.example.com"] = ["v=DMARC1; p=bogus; rua=mailto:d@example.com"];
+  const bogus = await checkDmarc("example.com");
+  assert.deepEqual(severities(bogus.findings), ["error"]);
+});
+
 test("DKIM with explicit selectors reports every selector and joins split TXT strings", async () => {
   txt["s1._domainkey.example.com"] = [["v=DKIM1; k=ed25519; ", "p=MCowBQYDK2VwAyEA"]];
   const dkim = await checkDkim("example.com", ["s1", "s2"]);
