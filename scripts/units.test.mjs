@@ -35,6 +35,7 @@ import {
 import { resolver } from "../dist/core/dns.js";
 import { checkSpf, checkDmarc, checkDkim, auditEmailAuth } from "../dist/core/email-auth.js";
 import { parseEmailHeaders } from "../dist/core/email-headers.js";
+import { gradeHeaders } from "../dist/core/http.js";
 import { lookupLocation } from "../dist/core/geoip.js";
 import { truncate, respond, fail, scoreToGrade, ResponseFormat } from "../dist/format.js";
 import { CHARACTER_LIMIT, COMMON_DKIM_SELECTORS } from "../dist/constants.js";
@@ -530,6 +531,23 @@ test("DMARC policy values are case-insensitive and an unknown policy is an error
   txt["_dmarc.example.com"] = ["v=DMARC1; p=bogus; rua=mailto:d@example.com"];
   const bogus = await checkDmarc("example.com");
   assert.deepEqual(severities(bogus.findings), ["error"]);
+});
+
+test("security headers: a header that does not do its job earns no credit", () => {
+  const grade = (h) => gradeHeaders(new Headers(h));
+  const good = grade({ "strict-transport-security": "max-age=31536000", "x-content-type-options": "nosniff" });
+  assert.equal(good.score, Math.round(((25 + 15) / 100) * 100));
+  // max-age=0 switches HSTS off; a wrong nosniff value does nothing.
+  const off = grade({ "strict-transport-security": "max-age=0", "x-content-type-options": "sniff" });
+  assert.equal(off.score, 0);
+  assert.equal(off.checks[0].present, true);
+  assert.match(off.checks[0].note, /max-age=0/);
+  // A short but non-zero max-age still counts, with a note.
+  const short = grade({ "strict-transport-security": "max-age=3600" });
+  assert.equal(short.score, 25);
+  assert.match(short.checks[0].note, /180 days/);
+  // No max-age directive at all is ignored by browsers.
+  assert.equal(grade({ "strict-transport-security": "includeSubDomains" }).score, 0);
 });
 
 test("DKIM with explicit selectors reports every selector and joins split TXT strings", async () => {

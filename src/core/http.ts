@@ -30,17 +30,24 @@ interface HeaderSpec {
   weight: number;
   note: string;
   evaluate?: (value: string) => string | undefined;
+  /** A present header that fails this earns no credit (it does not do its job). */
+  effective?: (value: string) => boolean;
 }
+
+const HSTS_MAX_AGE_RE = /max-age\s*=\s*"?(\d+)/i;
 
 const HEADER_SPECS: HeaderSpec[] = [
   {
     header: "strict-transport-security",
     weight: 25,
     note: "Forces HTTPS (HSTS). Use a long max-age and includeSubDomains.",
-    evaluate: (v) =>
-      /max-age=(\d+)/i.exec(v)?.[1] && Number(/max-age=(\d+)/i.exec(v)?.[1]) < 15552000
-        ? "max-age is below the recommended 180 days."
-        : undefined,
+    evaluate: (v) => {
+      const maxAge = HSTS_MAX_AGE_RE.exec(v)?.[1];
+      if (maxAge === undefined) return "No valid max-age directive, so browsers ignore the header.";
+      if (Number(maxAge) === 0) return "max-age=0 switches HSTS off (it clears any stored policy).";
+      return Number(maxAge) < 15552000 ? "max-age is below the recommended 180 days." : undefined;
+    },
+    effective: (v) => Number(HSTS_MAX_AGE_RE.exec(v)?.[1] ?? 0) > 0,
   },
   {
     header: "content-security-policy",
@@ -53,6 +60,7 @@ const HEADER_SPECS: HeaderSpec[] = [
     note: "Should be 'nosniff' to stop MIME-type sniffing.",
     evaluate: (v) =>
       /nosniff/i.test(v) ? undefined : "Expected the value 'nosniff'.",
+    effective: (v) => /nosniff/i.test(v),
   },
   {
     header: "x-frame-options",
@@ -90,8 +98,20 @@ export async function analyzeSecurityHeaders(
   });
   await res.body?.cancel(); // only the headers matter
 
+  return {
+    url: url.toString(),
+    final_url: finalUrl,
+    status: res.status,
+    ...gradeHeaders(res.headers),
+  };
+}
+
+/** Score a response's headers against HEADER_SPECS. Pure: no network. */
+export function gradeHeaders(
+  headers: Pick<Headers, "get">,
+): Pick<SecurityHeadersReport, "grade" | "score" | "checks" | "missing"> {
   const checks: HeaderCheck[] = HEADER_SPECS.map((spec) => {
-    const value = res.headers.get(spec.header) ?? undefined;
+    const value = headers.get(spec.header) ?? undefined;
     const present = value !== undefined;
     const qualityNote = present && spec.evaluate ? spec.evaluate(value!) : undefined;
     return {
@@ -104,13 +124,13 @@ export async function analyzeSecurityHeaders(
   });
 
   const totalWeight = HEADER_SPECS.reduce((sum, s) => sum + s.weight, 0);
-  const earned = checks.reduce((sum, c) => sum + (c.present ? c.weight : 0), 0);
+  const earned = checks.reduce((sum, c, i) => {
+    const effective = c.present && (HEADER_SPECS[i]!.effective?.(c.value!) ?? true);
+    return sum + (effective ? c.weight : 0);
+  }, 0);
   const score = Math.round((earned / totalWeight) * 100);
 
   return {
-    url: url.toString(),
-    final_url: finalUrl,
-    status: res.status,
     grade: scoreToGrade(score),
     score,
     checks,
