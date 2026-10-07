@@ -49,7 +49,7 @@ It is the agent-facing companion to the network tools at
 |---|---|
 | **`email_auth_audit`** ⭐ | One-call SPF + DKIM + DMARC + MX audit → 0–100 score, A–F grade, prioritised fixes |
 | `spf_check` | Parse SPF; recursively count DNS lookups vs the RFC 7208 limit of 10; flag `+all`/`?all` |
-| `dmarc_check` | Parse DMARC policy (`p`, `sp`, `rua`, `pct`, `aspf`/`adkim`) with warnings |
+| `dmarc_check` | Parse the DMARC record (every tag is returned) and flag a missing or invalid `p`, `p=none`, no `rua` and `pct` under 100 |
 | `dkim_check` | Probe `<selector>._domainkey` keys (supply selectors or use common ones) |
 | `mta_sts_check` | Validate the `_mta-sts` TXT **and** the `.well-known/mta-sts.txt` policy + mode |
 | `tls_rpt_check` | Check the `_smtp._tls` TLS-RPT record |
@@ -64,7 +64,7 @@ It is the agent-facing companion to the network tools at
 | `caa_check` | Which CAs may issue TLS certificates (CAA records) |
 | `blacklist_check` | IP/domain against open-access email DNSBLs |
 | `dns_propagation` | Compare a record across 5 public resolvers worldwide |
-| `http_security_headers` | Grade a site's HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and COOP |
+| `http_security_headers` | Grade a site's HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy and COOP (an HSTS `max-age=0` earns nothing) |
 | `analyze_email_headers` | Parse raw headers → SPF/DKIM/DMARC verdicts + Received hop chain with delays |
 
 Every tool is **read-only**, declares an `outputSchema` and returns
